@@ -104,16 +104,17 @@ void platform_start(enum platform system) {
   switch (system) {
   #ifdef HAVE_AML
   case AML:
-    blank_fb("/sys/class/graphics/fb0/blank", true);
-    blank_fb("/sys/class/graphics/fb1/blank", true);
+    set_bool("/sys/class/graphics/fb0/blank", true);
+    set_bool("/sys/class/graphics/fb1/blank", true);
 
     // set disable_video flag to 0
-    set_disable_video_flag("/sys/class/video/disable_video", false);
+    set_bool("/sys/class/video/disable_video", false);
+    //set_int("/sys/module/amvdec_h265/parameters/decode_pic_begin", 2048);
     break;
   #endif
   #if defined(HAVE_PI) | defined(HAVE_MMAL)
   case PI:
-    blank_fb("/sys/class/graphics/fb0/blank", true);
+    set_bool("/sys/class/graphics/fb0/blank", true);
     break;
   #endif
   }
@@ -123,16 +124,17 @@ void platform_stop(enum platform system) {
   switch (system) {
   #ifdef HAVE_AML
   case AML:
-    blank_fb("/sys/class/graphics/fb0/blank", false);
-    blank_fb("/sys/class/graphics/fb1/blank", false);
+    set_bool("/sys/class/graphics/fb0/blank", false);
+    set_bool("/sys/class/graphics/fb1/blank", false);
 
     // set disable_video flag to 1
-    set_disable_video_flag("/sys/class/video/disable_video", true);
+    set_bool("/sys/class/video/disable_video", true);
+    set_int("/sys/module/amvdec_h265/parameters/decode_pic_begin", 0);
     break;
   #endif
   #if defined(HAVE_PI) | defined(HAVE_MMAL)
   case PI:
-    blank_fb("/sys/class/graphics/fb0/blank", false);
+    set_bool("/sys/class/graphics/fb0/blank", false);
     break;
   #endif
   }
