@@ -37,7 +37,8 @@
 
 #define SYNC_OUTSIDE 0x02
 #define UCODE_IP_ONLY_PARAM 0x08
-#define DECODER_BUFFER_SIZE 120*1024
+#define DECODER_BUFFER_SIZE 300*1024
+#define DECODER_BUFFER_SIZE_REDUCED 150*1024
 
 static codec_para_t codecParam = { 0 };
 static char* frame_buffer;
@@ -77,13 +78,7 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
       _moonlight_log(ERR, "Video format not supported\n");
       return -1;
   }
-  
-  frame_buffer = malloc(DECODER_BUFFER_SIZE);
-  if (frame_buffer == NULL) {
-    _moonlight_log(ERR, "Not enough memory to initialize frame buffer\n");
-    return -2;
-  }
-  
+    
   codecParam.am_sysinfo.width = width;
   codecParam.am_sysinfo.height = height;
   codecParam.am_sysinfo.rate = 96000 / redrawRate;
@@ -97,6 +92,16 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
   
   if ((ret = codec_set_freerun_mode(&codecParam, 1)) != 0) {
     _moonlight_log(ERR, "Can't set Freerun mode: %x\n", ret);
+    return -2;
+  }
+
+  frame_buffer = malloc(DECODER_BUFFER_SIZE);
+  if (frame_buffer == NULL)
+    frame_buffer = malloc(DECODER_BUFFER_SIZE_REDUCED);
+
+
+  if (frame_buffer == NULL) {
+    _moonlight_log(ERR, "Not enough memory to initialize frame buffer\n");
     return -2;
   }
   
@@ -177,7 +182,7 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
       break;
     }
   } else {
-    _moonlight_log(ERR, "Video decode buffer too small, %i < %i\n", decodeUnit->fullLength, DECODER_BUFFER_SIZE);
+    _moonlight_log(ERR, "Video decode buffer too small, %i > %i\n", decodeUnit->fullLength, DECODER_BUFFER_SIZE);
     exit(1);
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
