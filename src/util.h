@@ -28,7 +28,7 @@
 #define write_config_int(fd, key, value) fprintf(fd, "%s = %d\n", key, value)
 #define write_config_bool(fd, key, value) fprintf(fd, "%s = %s\n", key, value ? "true":"false")
 
-int blank_fb(char *path, bool clear);
+int set_bool(char *path, bool value);
+int set_int(char *path, int value);
 
-int set_disable_video_flag(char *path, bool disabled);
 char* get_path(char* name, char* extra_data_dirs);

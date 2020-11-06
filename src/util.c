@@ -81,13 +81,13 @@ char* get_path(char* name, char* extra_data_dirs) {
   return NULL;
 }
 
-int blank_fb(char *path, bool clear) {
+int set_bool(char *path, bool value) {
   int fd = open(path, O_RDWR);
 
   if(fd >= 0) {
-    int ret = write(fd, clear ? "1" : "0", 1);
+    int ret = write(fd, value ? "1" : "0", 1);
     if (ret < 0)
-      _moonlight_log(ERR, "Failed to clear framebuffer %s: %d\n", path, ret);
+      _moonlight_log(ERR, "Failed to set boolean parameter %s, error %d!\n", path, ret);
 
     close(fd);
     return 0;
@@ -95,15 +95,19 @@ int blank_fb(char *path, bool clear) {
     return -1;
 }
 
-
-int set_disable_video_flag(char *path, bool disabled) {
+int set_int(char *path, int value) {
   int fd = open(path, O_RDWR);
-
   if(fd >= 0) {
-    int ret = write(fd, disabled ? "1" : "0", 1);
-    if (ret < 0)
-      _moonlight_log(ERR, "Failed to set disable_video flag %s: %d\n", path, ret);
 
+    int length = snprintf( NULL, 0, "%d", value );
+    char* str = malloc( length + 1 );
+    snprintf( str, length + 1, "%d", value );
+
+    int ret = write(fd, str, 1);
+    if (ret < 0)
+      _moonlight_log(ERR, "Failed to set int parameter %s to: %s, error %d!\n", path, str, ret);
+
+    free(str);
     close(fd);
     return 0;
   } else
