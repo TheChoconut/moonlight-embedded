@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Moonlight; if not, see <http://www.gnu.org/licenses/>.
  */
+#define _GNU_SOURCE
 
 #include "loop.h"
 #include "connection.h"
@@ -41,7 +42,7 @@
 
 #include <client.h>
 #include <discover.h>
-
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -141,6 +142,11 @@ static void stream(PSERVER_DATA server, PCONFIGURATION config, enum platform sys
     loop_init();
 
   platform_start(system);
+  #ifdef HAVE_AML
+  if(config->stream_start_delay >= 0) {
+    ((void (*)(int)) dlsym(RTLD_DEFAULT, "aml_set_video_init_delay"))(config->stream_start_delay);
+  }
+  #endif
   LiStartConnection(&server->serverInfo, &config->stream, &connection_callbacks, platform_get_video(system), platform_get_audio(system, config->audio_device), NULL, drFlags, config->audio_device, 0);
 
   if (IS_EMBEDDED(system)) {
