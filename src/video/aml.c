@@ -46,11 +46,26 @@ static char* frame_buffer;
 time_t lastMeasuredTime;
 int lastFrameNumber = -1, droppedFrames = 0, totalFrames = 0, nfis = 0, hFPS = -1, lFPS = 1000, avgFPS = -1, decodeTime = -1, avgDec = -1;
 
+int LASTVF = 0, LASTWIDTH = 0, LASTHEIGHT = 0, LASTRR = 0, video_delay = -1;
+void aml_set_video_init_delay(int delaySec) {
+  video_delay = delaySec;
+}
+
 int aml_setup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
   codecParam.stream_type = STREAM_TYPE_ES_VIDEO;
   codecParam.has_video = 1;
   codecParam.noblock = 0;
   codecParam.am_sysinfo.param = 0;
+
+  if (LASTWIDTH == 0) {
+    LASTVF = videoFormat;
+    LASTWIDTH = width;
+    LASTHEIGHT = height;
+    LASTRR = redrawRate; 
+  }
+
+  if (video_delay >= 0)
+    return 0;
   
   switch (videoFormat) {
     case VIDEO_FORMAT_H264:
@@ -94,17 +109,16 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
     _moonlight_log(ERR, "Can't set Freerun mode: %x\n", ret);
     return -2;
   }
-
-  frame_buffer = malloc(DECODER_BUFFER_SIZE);
-  if (frame_buffer == NULL)
-    frame_buffer = malloc(DECODER_BUFFER_SIZE_REDUCED);
-
+  if (frame_buffer == NULL) {
+    frame_buffer = malloc(DECODER_BUFFER_SIZE);
+    if (frame_buffer == NULL)
+      frame_buffer = malloc(DECODER_BUFFER_SIZE_REDUCED);
+  }
 
   if (frame_buffer == NULL) {
     _moonlight_log(ERR, "Not enough memory to initialize frame buffer\n");
     return -2;
   }
-  
   return 0;
 }
 
@@ -134,6 +148,18 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
   int result = DR_OK, api, length = 0;
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  if (video_delay > 0) {
+    if (lastMeasure.tv_nsec == 0) {
+      clock_gettime(CLOCK_MONOTONIC_RAW, &lastMeasure);
+    } else if (start.tv_sec - lastMeasure.tv_sec >= video_delay) {
+      video_delay = -1;
+      aml_setup(LASTVF, LASTWIDTH, LASTHEIGHT, LASTRR, NULL, 0);
+      lastFrameNumber = decodeUnit->frameNumber;
+      result = DR_NEED_IDR;
+    }
+    return result;
+  }
+
   if (lastMeasure.tv_nsec == 0 || (start.tv_sec - lastMeasure.tv_sec) >= 1) {
     if (nfis > 0) {
       avgFPS = nfis / (start.tv_sec - lastMeasure.tv_sec);

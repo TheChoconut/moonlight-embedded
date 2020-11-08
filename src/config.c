@@ -63,6 +63,7 @@ static struct option long_options[] = {
   {"viewonly", no_argument, NULL, '2'},
   {"rotate", required_argument, NULL, '3'},
   {"logging", no_argument, NULL, '4'},
+  {"delay", required_argument, NULL, '5'},
   {"verbose", no_argument, NULL, 'z'},
   {"debug", no_argument, NULL, 'Z'},
   {0, 0, 0, 0},
@@ -116,6 +117,9 @@ static void parse_argument(int c, char* value, PCONFIGURATION config) {
   case '4':
     config->log_file_enabled = true;
     initialize_log();
+    break;
+  case '5':
+    config->stream_start_delay = atoi(value);
     break;
   case 'l':
     config->sops = false;
@@ -282,6 +286,7 @@ void config_parse(int argc, char* argv[], PCONFIGURATION config) {
   config->quitappafter = false;
   config->viewonly = false;
   config->rotate = 0;
+  config->stream_start_delay = -1;
   config->codec = CODEC_UNSPECIFIED;
 
   config->inputsCount = 0;

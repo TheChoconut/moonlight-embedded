@@ -41,6 +41,7 @@ typedef struct _CONFIGURATION {
   bool fullscreen;
   bool log_file_enabled;
   int rotate;
+  int stream_start_delay;
   bool unsupported;
   bool quitappafter;
   bool viewonly;
