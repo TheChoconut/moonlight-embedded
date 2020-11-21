@@ -144,6 +144,7 @@ static void stream(PSERVER_DATA server, PCONFIGURATION config, enum platform sys
   platform_start(system);
   #ifdef HAVE_AML
   if(config->stream_start_delay >= 0) {
+    alsa_set_audio_init_delay(config->stream_start_delay);
     ((void (*)(int)) dlsym(RTLD_DEFAULT, "aml_set_video_init_delay"))(config->stream_start_delay);
   }
   #endif
