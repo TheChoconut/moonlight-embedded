@@ -205,6 +205,9 @@ static void help() {
   #if defined(HAVE_PI) | defined(HAVE_MMAL)
   printf("\t-rotate <height>\tRotate display: 0/90/180/270 (default 0)\n");
   #endif
+  #if defined(HAVE_AML)
+  printf("\t-delay <N>\t\tDelay playing A/V stream until N seconds passes (default 0)\n");
+  #endif
   printf("\t-fps <fps>\t\tSpecify the fps to use (default -1)\n");
   printf("\t-bitrate <bitrate>\tSpecify the bitrate in Kbps\n");
   printf("\t-packetsize <size>\tSpecify the maximum packetsize in bytes\n");
