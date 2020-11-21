@@ -27,6 +27,7 @@
 
 #ifdef HAVE_ALSA
 extern AUDIO_RENDERER_CALLBACKS audio_callbacks_alsa;
+void alsa_set_audio_init_delay(int delaySec);
 #endif
 #ifdef HAVE_SDL
 extern AUDIO_RENDERER_CALLBACKS audio_callbacks_sdl;

@@ -30,9 +30,24 @@ static snd_pcm_t *handle;
 static OpusMSDecoder* decoder;
 static short pcmBuffer[FRAME_SIZE * MAX_CHANNEL_COUNT];
 
+int initAudioConfig = -1, audio_delay = 0;
+OPUS_MULTISTREAM_CONFIGURATION initOpusConfig;
+void* initContext;
+
+void alsa_set_audio_init_delay(int delaySec) {
+  audio_delay = delaySec;
+}
+
 static int alsa_renderer_init(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int arFlags) {
   int rc;
   unsigned char alsaMapping[MAX_CHANNEL_COUNT];
+
+  if (initAudioConfig == -1 && audio_delay > 0) {
+    initAudioConfig = audioConfiguration;
+    initOpusConfig = *opusConfig;
+    initContext = context;
+    return 0;
+  }
 
   /* The supplied mapping array has order: FL-FR-C-LFE-RL-RR
    * ALSA expects the order: FL-FR-RL-RR-C-LFE
@@ -84,6 +99,7 @@ static int alsa_renderer_init(int audioConfiguration, POPUS_MULTISTREAM_CONFIGUR
 
   CHECK_RETURN(snd_pcm_prepare(handle));
 
+  audio_delay = 0;
   return 0;
 }
 
@@ -97,7 +113,42 @@ static void alsa_renderer_cleanup() {
   }
 }
 
+struct timespec currentTime, lastTry;
+static bool check_for_audio_delay() {
+  if (audio_delay > 0) {
+    clock_gettime(CLOCK_MONOTONIC_RAW, &currentTime);
+    if (lastTry.tv_nsec == 0) {
+      _moonlight_log(INFO, "Audio was delayed for %d seconds and not initialized...\n", audio_delay);
+      clock_gettime(CLOCK_MONOTONIC_RAW, &lastTry);
+    } else if (currentTime.tv_sec - lastTry.tv_sec >= audio_delay)
+      audio_delay = -4;
+    return false;
+  } else if (audio_delay < 0) {
+    clock_gettime(CLOCK_MONOTONIC_RAW, &currentTime);
+    if (audio_delay < -1) {
+      if (currentTime.tv_sec - lastTry.tv_sec >= 1 || audio_delay == -4) {
+        audio_delay++;
+        _moonlight_log(ERR, "Trying to initialize audio after delay (try=%d)...\n", audio_delay);
+        alsa_renderer_init(initAudioConfig, &initOpusConfig, initContext, 0);
+        // alsa_renderer_init() sets audio_delay to 0 on success.
+        if (audio_delay < 0) {
+          _moonlight_log(ERR, "Audio initializing failed... Retrying later... (try=%d)...\n", audio_delay);
+          clock_gettime(CLOCK_MONOTONIC_RAW, &lastTry);
+        }
+          
+      }
+    } else {
+      _moonlight_log(ERR, "Failed to initialize audio after delay...\n");
+      exit(0);
+    }
+    return false;
+  }
+  return true;
+}
+
 static void alsa_renderer_decode_and_play_sample(char* data, int length) {
+  if (check_for_audio_delay() == false) return;
+
   int decodeLen = opus_multistream_decode(decoder, data, length, pcmBuffer, FRAME_SIZE, 0);
   if (decodeLen > 0) {
     int rc = snd_pcm_writei(handle, pcmBuffer, decodeLen);
