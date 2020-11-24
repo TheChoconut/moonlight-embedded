@@ -34,11 +34,13 @@
 #include <time.h>
 #include <fcntl.h>
 #include "../logging.h"
+#include "../platform.h"
 
 #define SYNC_OUTSIDE 0x02
 #define UCODE_IP_ONLY_PARAM 0x08
 #define DECODER_BUFFER_SIZE 300*1024
 #define DECODER_BUFFER_SIZE_REDUCED 150*1024
+#define DR_VIDEO_DELAY -2
 
 static codec_para_t codecParam = { 0 };
 static char* frame_buffer;
@@ -144,20 +146,36 @@ void aml_cleanup() {
 }
 
 struct timespec start, lastMeasure, end;
-int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
-  int result = DR_OK, api, length = 0;
-
-  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+int check_for_video_delay() {
   if (video_delay > 0) {
     if (lastMeasure.tv_nsec == 0) {
+      _moonlight_log(WARN, "Video system was delayed for %d seconds and not initialized...\n", video_delay);
       clock_gettime(CLOCK_MONOTONIC_RAW, &lastMeasure);
     } else if (start.tv_sec - lastMeasure.tv_sec >= video_delay) {
       video_delay = -1;
-      aml_setup(LASTVF, LASTWIDTH, LASTHEIGHT, LASTRR, NULL, 0);
-      lastFrameNumber = decodeUnit->frameNumber;
-      result = DR_NEED_IDR;
+      _moonlight_log(INFO, "Initializing AML video after delay...\n");
+      if (aml_setup(LASTVF, LASTWIDTH, LASTHEIGHT, LASTRR, NULL, 0) < 0) {
+        _moonlight_log(ERR, "Video failed to initialize after delay... Closing the program.\n");
+        platform_stop(AML);
+        exit(0);
+        return DR_VIDEO_DELAY;
+      }
+      platform_start(AML);
+      _moonlight_log(INFO, "Video initialized sucessfully. Requesting IDR frame...\n");
+      return DR_NEED_IDR;
     }
-    return result;
+    return DR_VIDEO_DELAY;
+  }
+  return DR_OK;
+}
+
+int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  int result = check_for_video_delay(), api, length = 0;
+
+  if (result != DR_OK) {  
+    lastFrameNumber = decodeUnit->frameNumber;
+    return result == DR_VIDEO_DELAY ? DR_OK : result;
   }
 
   if (lastMeasure.tv_nsec == 0 || (start.tv_sec - lastMeasure.tv_sec) >= 1) {
@@ -209,6 +227,7 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
     }
   } else {
     _moonlight_log(ERR, "Video decode buffer too small, %i > %i\n", decodeUnit->fullLength, DECODER_BUFFER_SIZE);
+    platform_stop(AML);
     exit(1);
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
