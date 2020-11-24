@@ -129,7 +129,7 @@ void platform_stop(enum platform system) {
 
     // set disable_video flag to 1
     set_bool("/sys/class/video/disable_video", true);
-    set_int("/sys/module/amvdec_h265/parameters/decode_pic_begin", 0);
+    //set_int("/sys/module/amvdec_h265/parameters/decode_pic_begin", 0);
     break;
   #endif
   #if defined(HAVE_PI) | defined(HAVE_MMAL)

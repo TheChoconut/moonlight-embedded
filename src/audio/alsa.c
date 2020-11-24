@@ -118,7 +118,7 @@ static bool check_for_audio_delay() {
   if (audio_delay > 0) {
     clock_gettime(CLOCK_MONOTONIC_RAW, &currentTime);
     if (lastTry.tv_nsec == 0) {
-      _moonlight_log(INFO, "Audio was delayed for %d seconds and not initialized...\n", audio_delay);
+      _moonlight_log(WARN, "Audio was delayed for %d seconds and not initialized...\n", audio_delay);
       clock_gettime(CLOCK_MONOTONIC_RAW, &lastTry);
     } else if (currentTime.tv_sec - lastTry.tv_sec >= audio_delay)
       audio_delay = -4;
@@ -128,7 +128,7 @@ static bool check_for_audio_delay() {
     if (audio_delay < -1) {
       if (currentTime.tv_sec - lastTry.tv_sec >= 1 || audio_delay == -4) {
         audio_delay++;
-        _moonlight_log(ERR, "Trying to initialize audio after delay (try=%d)...\n", audio_delay);
+        _moonlight_log(WARN, "Trying to initialize audio after delay (try=%d)...\n", audio_delay);
         alsa_renderer_init(initAudioConfig, &initOpusConfig, initContext, 0);
         // alsa_renderer_init() sets audio_delay to 0 on success.
         if (audio_delay < 0) {
