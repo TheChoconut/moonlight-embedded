@@ -147,6 +147,9 @@ static void stream(PSERVER_DATA server, PCONFIGURATION config, enum platform sys
     alsa_set_audio_init_delay(config->stream_start_delay);
     ((void (*)(int)) dlsym(RTLD_DEFAULT, "aml_set_video_init_delay"))(config->stream_start_delay);
   }
+  if (config->stream.packetSize < 1536) {
+    ((void (*)(void)) dlsym(RTLD_DEFAULT, "aml_use_optimized_fb_algorithm"))();
+  }
   #endif
   LiStartConnection(&server->serverInfo, &config->stream, &connection_callbacks, platform_get_video(system), platform_get_audio(system, config->audio_device), NULL, drFlags, config->audio_device, 0);
 
