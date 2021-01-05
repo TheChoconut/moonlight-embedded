@@ -178,6 +178,7 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
     return result == DR_VIDEO_DELAY ? DR_OK : result;
   }
 
+  codec_checkin_pts(&codecParam, decodeUnit->presentationTimeMs);
   if (lastMeasure.tv_nsec == 0 || (start.tv_sec - lastMeasure.tv_sec) >= 1) {
     if (nfis > 0) {
       avgFPS = nfis / (start.tv_sec - lastMeasure.tv_sec);
