@@ -38,6 +38,7 @@
 
 #define SYNC_OUTSIDE 0x02
 #define UCODE_IP_ONLY_PARAM 0x08
+#define MAX_ERR_ATTEMPTS 20
 #define DECODER_BUFFER_SIZE 300*1024
 #define DECODER_BUFFER_SIZE_REDUCED 150*1024
 #define DR_VIDEO_DELAY -2
@@ -49,8 +50,13 @@ time_t lastMeasuredTime;
 int lastFrameNumber = -1, droppedFrames = 0, totalFrames = 0, nfis = 0, hFPS = -1, lFPS = 1000, avgFPS = -1, decodeTime = -1, avgDec = -1;
 
 int LASTVF = 0, LASTWIDTH = 0, LASTHEIGHT = 0, LASTRR = 0, video_delay = -1;
+bool optimizedBuffer = false;
 void aml_set_video_init_delay(int delaySec) {
   video_delay = delaySec;
+}
+void aml_use_optimized_fb_algorithm() {
+  optimizedBuffer = true;
+  _moonlight_log(WARN, "Amlogic decoder will use optimized algorithm for small packet sizes. Set packet size to at least 1536 to disable.\n");
 }
 
 int aml_setup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -111,13 +117,13 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
     _moonlight_log(ERR, "Can't set Freerun mode: %x\n", ret);
     return -2;
   }
-  if (frame_buffer == NULL) {
+  if (frame_buffer == NULL && optimizedBuffer) {
     frame_buffer = malloc(DECODER_BUFFER_SIZE);
     if (frame_buffer == NULL)
       frame_buffer = malloc(DECODER_BUFFER_SIZE_REDUCED);
   }
 
-  if (frame_buffer == NULL) {
+  if (frame_buffer == NULL && optimizedBuffer) {
     _moonlight_log(ERR, "Not enough memory to initialize frame buffer\n");
     return -2;
   }
@@ -126,7 +132,9 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
 
 void aml_cleanup() {
   codec_close(&codecParam);
-  free(frame_buffer);
+
+  if (frame_buffer != NULL)
+    free(frame_buffer);
 
   // HACK: Write amlogic decoder stats here.
 
@@ -202,15 +210,44 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
   totalFrames++;
   nfis++;
 
-  if (decodeUnit->fullLength > 0 && decodeUnit->fullLength < DECODER_BUFFER_SIZE) {
-    PLENTRY entry = decodeUnit->bufferList;
-    while (entry != NULL) {
-      memcpy(frame_buffer+length, entry->data, entry->length);
-      length += entry->length;
-      entry = entry->next;
+  if (optimizedBuffer) {
+    
+    if (decodeUnit->fullLength > 0 && decodeUnit->fullLength < DECODER_BUFFER_SIZE) {
+          PLENTRY entry = decodeUnit->bufferList;
+          while (entry != NULL) {
+            memcpy(frame_buffer+length, entry->data, entry->length);
+            length += entry->length;
+            entry = entry->next;
+          }
+          int errCounter = 0;
+          while (errCounter < MAX_ERR_ATTEMPTS) {
+            api = codec_write(&codecParam, frame_buffer, length);
+            if (api < 0) {
+              if (errno != EAGAIN) {
+                _moonlight_log(ERR, "codec_write error: %x %d\n", api, errno);
+                droppedFrames += 1;
+                codec_reset(&codecParam);
+                result = DR_NEED_IDR;
+                break;
+              } else {
+                _moonlight_log(ERR, "EAGAIN triggered, trying again...\n");
+                usleep(20000);
+                errCounter++;
+                continue;
+              }
+            }
+            break;
+          }
+    } else {
+      _moonlight_log(ERR, "Video decode buffer too small, %i > %i\n", decodeUnit->fullLength, DECODER_BUFFER_SIZE);
+      platform_stop(AML);
+      exit(1);
     }
-    while (1) {
-      api = codec_write(&codecParam, frame_buffer, length);
+  } else {
+    PLENTRY entry = decodeUnit->bufferList;
+    int errCounter = 0;
+    while (entry != NULL && errCounter < MAX_ERR_ATTEMPTS) {
+      api = codec_write(&codecParam, entry->data, entry->length);
       if (api < 0) {
         if (errno != EAGAIN) {
           _moonlight_log(ERR, "codec_write error: %x %d\n", api, errno);
@@ -220,16 +257,13 @@ int aml_submit_decode_unit(PDECODE_UNIT decodeUnit) {
           break;
         } else {
           _moonlight_log(ERR, "EAGAIN triggered, trying again...\n");
-          usleep(5000);
+          usleep(20000);
+          errCounter++;
           continue;
         }
       }
-      break;
+      entry = entry->next;
     }
-  } else {
-    _moonlight_log(ERR, "Video decode buffer too small, %i > %i\n", decodeUnit->fullLength, DECODER_BUFFER_SIZE);
-    platform_stop(AML);
-    exit(1);
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
   decodeTime += (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
