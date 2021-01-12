@@ -102,8 +102,7 @@ int set_int(char *path, int value) {
     int length = snprintf( NULL, 0, "%d", value );
     char* str = malloc( length + 1 );
     snprintf( str, length + 1, "%d", value );
-
-    int ret = write(fd, str, 1);
+    int ret = write(fd, str, length);
     if (ret < 0)
       _moonlight_log(ERR, "Failed to set int parameter %s to: %s, error %d!\n", path, str, ret);
 
