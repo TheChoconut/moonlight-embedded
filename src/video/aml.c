@@ -36,6 +36,7 @@
 #include "../logging.h"
 #include "../platform.h"
 
+#define EXTERNAL_PTS 0x01
 #define SYNC_OUTSIDE 0x02
 #define UCODE_IP_ONLY_PARAM 0x08
 #define MAX_ERR_ATTEMPTS 20
@@ -56,7 +57,7 @@ void aml_set_video_init_delay(int delaySec) {
 }
 void aml_use_optimized_fb_algorithm() {
   optimizedBuffer = true;
-  _moonlight_log(WARN, "Amlogic decoder will use optimized algorithm for small packet sizes. Set packet size to at least 1536 to disable.\n");
+  _moonlight_log(WARN, "Amlogic decoder will use optimized algorithm. You may experience higher latency.\n");
 }
 
 int aml_setup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -105,7 +106,7 @@ int aml_setup(int videoFormat, int width, int height, int redrawRate, void* cont
   codecParam.am_sysinfo.width = width;
   codecParam.am_sysinfo.height = height;
   codecParam.am_sysinfo.rate = 96000 / redrawRate;
-  codecParam.am_sysinfo.param = (void*) ((size_t) codecParam.am_sysinfo.param | SYNC_OUTSIDE);
+  codecParam.am_sysinfo.param = (void*) ((size_t) codecParam.am_sysinfo.param | EXTERNAL_PTS | SYNC_OUTSIDE); // combine this with SYNC_OUTSIDE
   
   int ret;
   if ((ret = codec_init(&codecParam)) != 0) {

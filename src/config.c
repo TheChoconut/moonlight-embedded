@@ -64,6 +64,7 @@ static struct option long_options[] = {
   {"rotate", required_argument, NULL, '3'},
   {"logging", no_argument, NULL, '4'},
   {"delay", required_argument, NULL, '5'},
+  {"altdecalgorithm", no_argument, NULL, '6'},
   {"verbose", no_argument, NULL, 'z'},
   {"debug", no_argument, NULL, 'Z'},
   {0, 0, 0, 0},
@@ -120,6 +121,9 @@ static void parse_argument(int c, char* value, PCONFIGURATION config) {
     break;
   case '5':
     config->stream_start_delay = atoi(value);
+    break;
+  case '6':
+    config->alt_decoder_algorithm = true;
     break;
   case 'l':
     config->sops = false;
@@ -285,6 +289,7 @@ void config_parse(int argc, char* argv[], PCONFIGURATION config) {
   config->unsupported = false;
   config->quitappafter = false;
   config->viewonly = false;
+  config->alt_decoder_algorithm = false;
   config->rotate = 0;
   config->stream_start_delay = -1;
   config->codec = CODEC_UNSPECIFIED;

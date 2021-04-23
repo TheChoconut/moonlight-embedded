@@ -40,6 +40,7 @@ typedef struct _CONFIGURATION {
   bool localaudio;
   bool fullscreen;
   bool log_file_enabled;
+  bool alt_decoder_algorithm;
   int rotate;
   int stream_start_delay;
   bool unsupported;

@@ -62,7 +62,10 @@ static int alsa_renderer_init(int audioConfiguration, POPUS_MULTISTREAM_CONFIGUR
     alsaMapping[5] = opusConfig->mapping[3];
   }
 
-  decoder = opus_multistream_decoder_create(opusConfig->sampleRate, opusConfig->channelCount, opusConfig->streams, opusConfig->coupledStreams, alsaMapping, &rc);
+
+  int channelCount = opusConfig->channelCount;
+
+  decoder = opus_multistream_decoder_create(opusConfig->sampleRate, channelCount, opusConfig->streams, opusConfig->coupledStreams, alsaMapping, &rc);
 
   snd_pcm_hw_params_t *hw_params;
   snd_pcm_sw_params_t *sw_params;
@@ -78,25 +81,45 @@ static int alsa_renderer_init(int audioConfiguration, POPUS_MULTISTREAM_CONFIGUR
   CHECK_RETURN(snd_pcm_open(&handle, audio_device, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK))
 
   /* Set hardware parameters */
+  _moonlight_log(INFO, "Allocating alsa hardware parameters...\n");
   CHECK_RETURN(snd_pcm_hw_params_malloc(&hw_params));
+  _moonlight_log(DEBUG, "Initialize HW parameters...\n");
   CHECK_RETURN(snd_pcm_hw_params_any(handle, hw_params));
+  _moonlight_log(DEBUG, "Set access to interleaved...\n");
   CHECK_RETURN(snd_pcm_hw_params_set_access(handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED));
+  _moonlight_log(DEBUG, "Set format to S16_LE...\n");
   CHECK_RETURN(snd_pcm_hw_params_set_format(handle, hw_params, SND_PCM_FORMAT_S16_LE));
+  _moonlight_log(DEBUG, "Set rate near %u...\n", &sampleRate);
   CHECK_RETURN(snd_pcm_hw_params_set_rate_near(handle, hw_params, &sampleRate, NULL));
-  CHECK_RETURN(snd_pcm_hw_params_set_channels(handle, hw_params, opusConfig->channelCount));
+  _moonlight_log(DEBUG, "Set channel count to %d...\n", channelCount);
+  CHECK_RETURN(snd_pcm_hw_params_set_channels_near(handle, hw_params, &channelCount));
+  if (opusConfig->channelCount > channelCount) {
+    printf("Failed to assign enough channels, only %d available (%d required).\n", channelCount, opusConfig->channelCount);
+    return -1;
+  }
+
+  _moonlight_log(DEBUG, "Set period size to %d...\n", &period_size);
   CHECK_RETURN(snd_pcm_hw_params_set_period_size_near(handle, hw_params, &period_size, NULL));
+  _moonlight_log(DEBUG, "Set buffer size to %d...\n", &buffer_size);
   CHECK_RETURN(snd_pcm_hw_params_set_buffer_size_near(handle, hw_params, &buffer_size));
+  _moonlight_log(DEBUG, "Setting new HW params %d...\n");
   CHECK_RETURN(snd_pcm_hw_params(handle, hw_params));
   snd_pcm_hw_params_free(hw_params);
 
   /* Set software parameters */
+  _moonlight_log(DEBUG, "Allocating new SW params...\n");
   CHECK_RETURN(snd_pcm_sw_params_malloc(&sw_params));
+  _moonlight_log(DEBUG, "Initialize new SW params...\n");
   CHECK_RETURN(snd_pcm_sw_params_current(handle, sw_params));
+  _moonlight_log(DEBUG, "Setting SW avail mid to %d...\n", period_size);
   CHECK_RETURN(snd_pcm_sw_params_set_avail_min(handle, sw_params, period_size));
+  _moonlight_log(DEBUG, "Setting SW start thresh to %d...\n", period_size);
   CHECK_RETURN(snd_pcm_sw_params_set_start_threshold(handle, sw_params, buffer_size));
+  _moonlight_log(DEBUG, "Setting new SW paremters...\n");
   CHECK_RETURN(snd_pcm_sw_params(handle, sw_params));
   snd_pcm_sw_params_free(sw_params);
 
+  _moonlight_log(DEBUG, "snd_pcm_prepare()...\n");
   CHECK_RETURN(snd_pcm_prepare(handle));
 
   audio_delay = 0;
@@ -117,13 +140,16 @@ struct timespec currentTime, lastTry;
 static bool check_for_audio_delay() {
   if (audio_delay > 0) {
     clock_gettime(CLOCK_MONOTONIC_RAW, &currentTime);
+
     if (lastTry.tv_nsec == 0) {
       _moonlight_log(WARN, "Audio was delayed for %d seconds and not initialized...\n", audio_delay);
       clock_gettime(CLOCK_MONOTONIC_RAW, &lastTry);
     } else if (currentTime.tv_sec - lastTry.tv_sec >= audio_delay)
       audio_delay = -4;
+    
     return false;
   } else if (audio_delay < 0) {
+    
     clock_gettime(CLOCK_MONOTONIC_RAW, &currentTime);
     if (audio_delay < -1) {
       if (currentTime.tv_sec - lastTry.tv_sec >= 1 || audio_delay == -4) {

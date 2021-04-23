@@ -147,7 +147,7 @@ static void stream(PSERVER_DATA server, PCONFIGURATION config, enum platform sys
     alsa_set_audio_init_delay(config->stream_start_delay);
     ((void (*)(int)) dlsym(RTLD_DEFAULT, "aml_set_video_init_delay"))(config->stream_start_delay);
   }
-  if (config->stream.packetSize < 1536) {
+  if (config->alt_decoder_algorithm) {
     ((void (*)(void)) dlsym(RTLD_DEFAULT, "aml_use_optimized_fb_algorithm"))();
   }
   #endif
@@ -210,6 +210,7 @@ static void help() {
   #endif
   #if defined(HAVE_AML)
   printf("\t-delay <N>\t\tDelay playing A/V stream until N seconds passes (default 0)\n");
+  printf("\t-altdecalgorithm\tUse alternative decoding algorithm for Amlogic\n");
   #endif
   printf("\t-fps <fps>\t\tSpecify the fps to use (default -1)\n");
   printf("\t-bitrate <bitrate>\tSpecify the bitrate in Kbps\n");
@@ -391,6 +392,8 @@ int main(int argc, char* argv[]) {
     char pin[5];
     sprintf(pin, "%d%d%d%d", (int)random() % 10, (int)random() % 10, (int)random() % 10, (int)random() % 10);
     printf("Please enter the following PIN on the target PC: %s\n", pin);
+    // Flush stdout so scripts can read PIN from pipe.
+    fflush(stdout);
     if (gs_pair(&server, &pin[0]) != GS_OK) {
       _moonlight_log(ERR, "Failed to pair to server: %s\n", gs_error);
     } else {
