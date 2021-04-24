@@ -18,7 +18,7 @@
  */
 
 #include <Limelight.h>
-#include <logging.h>
+#include "../logging.h"
 #include <ceccloader.h>
 
 #define KEY_LEFT 0x25
